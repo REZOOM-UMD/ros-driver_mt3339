@@ -23,8 +23,8 @@ driver::driver(int32_t argc, char **argv)
     // Set up publishers.
     ros::NodeHandle public_node;
     driver::m_publisher_gnss_fix = public_node.advertise<sensor_msgs_ext::gnss_fix>("/gps_mt3339/fix", 1);
-    //driver::m_publisher_gnss_position = public_node.advertise<sensor_msgs_ext::gnss_position>("gnss/position", 1);
-    //driver::m_publisher_covariance = public_node.advertise<sensor_msgs_ext::covariance>("gnss/position/covariance", 1);
+    //driver::m_publisher_gnss_position = public_node.advertise<sensor_msgs_ext::gnss_position>("/gps_mt3339/position", 1);
+    //driver::m_publisher_covariance = public_node.advertise<sensor_msgs_ext::covariance>("/gps_mt3339/position/covariance", 1);
     driver::m_publisher_gnss_track = public_node.advertise<sensor_msgs_ext::gnss_track>("/gps_mt3339/track", 1);
     driver::m_publisher_time_reference = public_node.advertise<sensor_msgs_ext::time_reference>("/gps_mt3339/time", 1);
     // *********** Additional added ****************
@@ -422,7 +422,7 @@ void driver::handle_gga(const nmea::sentence& sentence)
     driver::m_builder_gnss_navsat_fix = new sensor_msgs::NavSatFix();
     // Populate the relevant portions of the position message.
     driver::m_builder_gnss_navsat_fix->header.stamp = ros::Time::now();
-    driver::m_builder_gnss_navsat_fix->header.frame_id = "base_link";
+    driver::m_builder_gnss_navsat_fix->header.frame_id = driver::p_frame_id;
 
     driver::m_builder_gnss_navsat_fix->status.status = sensor_msgs::NavSatStatus::STATUS_FIX;  
     driver::m_builder_gnss_navsat_fix->status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;  
