@@ -14,19 +14,21 @@ driver::driver(int32_t argc, char **argv)
     // Read parameters.
     driver::p_connection_settle_time = driver::m_node->param<int32_t>("connection_settle_time", 300);
     driver::p_timeout = driver::m_node->param<int32_t>("timeout", 300);
-    std::string p_port = driver::m_node->param<std::string>("serial_port", "/dev/ttyAMA0");
+    std::string p_port = driver::m_node->param<std::string>("serial_port", "/dev/ttyUSB0");
     uint32_t p_baud = driver::m_node->param<int32_t>("baud_rate", 38400);
     uint32_t p_update_rate = driver::m_node->param<int32_t>("update_rate", 100);
-    driver::p_frame_id = driver::m_node->param<std::string>("frame_id", "mt3339");
+    driver::p_frame_id = driver::m_node->param<std::string>("frame_id", "base_link");
     driver::p_uere = driver::m_node->param<double>("uere", 6.74);
 
     // Set up publishers.
     ros::NodeHandle public_node;
-    driver::m_publisher_gnss_fix = public_node.advertise<sensor_msgs_ext::gnss_fix>("gnss/fix", 1);
-    driver::m_publisher_gnss_position = public_node.advertise<sensor_msgs_ext::gnss_position>("gnss/position", 1);
-    driver::m_publisher_covariance = public_node.advertise<sensor_msgs_ext::covariance>("gnss/position/covariance", 1);
-    driver::m_publisher_gnss_track = public_node.advertise<sensor_msgs_ext::gnss_track>("gnss/track", 1);
-    driver::m_publisher_time_reference = public_node.advertise<sensor_msgs_ext::time_reference>("gnss/time", 1);
+    driver::m_publisher_gnss_fix = public_node.advertise<sensor_msgs_ext::gnss_fix>("/gps_mt3339/fix", 1);
+    //driver::m_publisher_gnss_position = public_node.advertise<sensor_msgs_ext::gnss_position>("gnss/position", 1);
+    //driver::m_publisher_covariance = public_node.advertise<sensor_msgs_ext::covariance>("gnss/position/covariance", 1);
+    driver::m_publisher_gnss_track = public_node.advertise<sensor_msgs_ext::gnss_track>("/gps_mt3339/track", 1);
+    driver::m_publisher_time_reference = public_node.advertise<sensor_msgs_ext::time_reference>("/gps_mt3339/time", 1);
+    // *********** Additional added ****************
+    driver::m_publisher_navsat_fix = public_node.advertise<sensor_msgs::NavSatFix>("/gps_mt3339/navsat_fix", 1);
     
     // Initialize flags.
     driver::f_is_reading = false;
@@ -37,6 +39,7 @@ driver::driver(int32_t argc, char **argv)
     // Initialize builders.
     driver::m_builder_gnss_fix = nullptr;
     driver::m_builder_gnss_position = nullptr;
+    driver::m_builder_gnss_navsat_fix = nullptr;
 
     // Make the connection with the MT3339.
     if(!driver::make_connection(p_port, p_baud))
@@ -70,6 +73,7 @@ driver::~driver()
     // Clean up builders.
     delete driver::m_builder_gnss_fix;
     delete driver::m_builder_gnss_position;
+    delete driver::m_builder_gnss_navsat_fix;
 }
 
 // RUN
@@ -385,12 +389,19 @@ void driver::handle_gga(const nmea::sentence& sentence)
     {
         delete driver::m_builder_gnss_position;
     }
+    if(driver::m_builder_gnss_navsat_fix) {
+        delete driver::m_builder_gnss_navsat_fix;
+    }
 
     // Create a new builder for the fix message.
     driver::m_builder_gnss_fix = new sensor_msgs_ext::gnss_fix();
+
     // Populate the relevant portions of the fix message.
     // Parse "fix quality" as fix type.
     driver::m_builder_gnss_fix->type = std::stoi(sentence.get_field(5));
+
+
+
     // Parse satellite count.
     if(sentence.has_field(6))
     {
@@ -400,13 +411,21 @@ void driver::handle_gga(const nmea::sentence& sentence)
     // Check if a fix is available.
     if(driver::m_builder_gnss_fix->type == sensor_msgs_ext::gnss_fix::TYPE_NO_FIX)
     {
+        ROS_WARN_STREAM("GPS MT3339 - No Fix!");
         // Quit before doing any building of the position message.
         return;
     }
 
     // Create a new builder for the position message.
     driver::m_builder_gnss_position = new sensor_msgs_ext::gnss_position();
+
+    driver::m_builder_gnss_navsat_fix = new sensor_msgs::NavSatFix();
     // Populate the relevant portions of the position message.
+    driver::m_builder_gnss_navsat_fix->header.stamp = ros::Time::now();
+    driver::m_builder_gnss_navsat_fix->header.frame_id = "base_link";
+
+    driver::m_builder_gnss_navsat_fix->status.status = sensor_msgs::NavSatStatus::STATUS_FIX;  
+    driver::m_builder_gnss_navsat_fix->status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;  
     // Parse latitude.
     if(sentence.has_field(1))
     {
@@ -417,10 +436,13 @@ void driver::handle_gga(const nmea::sentence& sentence)
         {
             driver::m_builder_gnss_position->latitude *= -1;
         }
+
+        driver::m_builder_gnss_navsat_fix->latitude = driver::m_builder_gnss_position->latitude;
     }
     else
     {
         driver::m_builder_gnss_position->latitude = std::numeric_limits<double>::quiet_NaN();
+        driver::m_builder_gnss_navsat_fix->latitude = std::numeric_limits<double>::quiet_NaN();
     }
     // Parse longitude.
     if(sentence.has_field(3))
@@ -430,21 +452,25 @@ void driver::handle_gga(const nmea::sentence& sentence)
         driver::m_builder_gnss_position->longitude += std::stod(lon_field.substr(3)) / 60.0;
         if(sentence.get_field(4) == "W")
         {
-            driver::m_builder_gnss_position->longitude *= -1;
+            driver::m_builder_gnss_position->longitude *= -1;   
         }
+        driver::m_builder_gnss_navsat_fix->longitude = driver::m_builder_gnss_position->longitude;
     }
     else
     {
         driver::m_builder_gnss_position->longitude = std::numeric_limits<double>::quiet_NaN();
+        driver::m_builder_gnss_navsat_fix->longitude = std::numeric_limits<double>::quiet_NaN();
     }
     // Parse Altitude
     if(sentence.has_field(8))
     {
         driver::m_builder_gnss_position->altitude = std::stod(sentence.get_field(8));
+        driver::m_builder_gnss_navsat_fix->altitude = driver::m_builder_gnss_position->altitude;
     }
     else
     {
         driver::m_builder_gnss_position->altitude = std::numeric_limits<double>::quiet_NaN();
+        driver::m_builder_gnss_navsat_fix->altitude = std::numeric_limits<double>::quiet_NaN();
     }
 }
 void driver::handle_gsa(const nmea::sentence& sentence)
@@ -509,12 +535,19 @@ void driver::handle_gsa(const nmea::sentence& sentence)
         covariance_message.covariance[4] = cov_h;
         covariance_message.covariance[8] = cov_v;
         // Publish covariance message.
-        driver::m_publisher_covariance.publish(covariance_message);
+        //driver::m_publisher_covariance.publish(covariance_message);
+
+        driver::m_builder_gnss_navsat_fix->position_covariance[0] = cov_h;
+        driver::m_builder_gnss_navsat_fix->position_covariance[4] = cov_h;
+        driver::m_builder_gnss_navsat_fix->position_covariance[8] = cov_v;
 
         // Message is now built. Send message.
-        driver::m_publisher_gnss_position.publish(*driver::m_builder_gnss_position);
+        // driver::m_publisher_gnss_position.publish(*driver::m_builder_gnss_position);
+        driver::m_publisher_navsat_fix.publish(*driver::m_builder_gnss_navsat_fix);
         delete driver::m_builder_gnss_position;
+        delete driver::m_builder_gnss_navsat_fix;
         driver::m_builder_gnss_position = nullptr;
+        driver::m_builder_gnss_navsat_fix = nullptr;
     }
 }
 void driver::handle_rmc(const nmea::sentence& sentence)

@@ -13,6 +13,7 @@
 #include <sensor_msgs_ext/gnss_track.h>
 #include <sensor_msgs_ext/time_reference.h>
 #include <sensor_msgs_ext/covariance.h>
+#include <sensor_msgs/NavSatFix.h>
 
 #include <boost/thread.hpp>
 
@@ -58,11 +59,15 @@ private:
     /// \brief Publisher for GPS time information.
     ros::Publisher m_publisher_time_reference;
 
+    ros::Publisher m_publisher_navsat_fix;
+
     // MESSAGE BUILDERS
     /// \brief A message builder for GNSS fix messages.
     sensor_msgs_ext::gnss_fix* m_builder_gnss_fix;
     /// \brief A message builder for GNSS position messages.
     sensor_msgs_ext::gnss_position* m_builder_gnss_position;
+
+    sensor_msgs::NavSatFix* m_builder_gnss_navsat_fix;
 
     // COMPONENTS
     /// \brief The serial port for communicating with the MT3339.
