@@ -22,13 +22,13 @@ driver::driver(int32_t argc, char **argv)
 
     // Set up publishers.
     ros::NodeHandle public_node;
-    driver::m_publisher_gnss_fix = public_node.advertise<sensor_msgs_ext::gnss_fix>("/gps_mt3339/fix", 1);
-    //driver::m_publisher_gnss_position = public_node.advertise<sensor_msgs_ext::gnss_position>("/gps_mt3339/position", 1);
-    //driver::m_publisher_covariance = public_node.advertise<sensor_msgs_ext::covariance>("/gps_mt3339/position/covariance", 1);
-    driver::m_publisher_gnss_track = public_node.advertise<sensor_msgs_ext::gnss_track>("/gps_mt3339/track", 1);
-    driver::m_publisher_time_reference = public_node.advertise<sensor_msgs_ext::time_reference>("/gps_mt3339/time", 1);
+    driver::m_publisher_gnss_fix = public_node.advertise<sensor_msgs_ext::gnss_fix>("fix", 1);
+    //driver::m_publisher_gnss_position = public_node.advertise<sensor_msgs_ext::gnss_position>("position", 1);
+    //driver::m_publisher_covariance = public_node.advertise<sensor_msgs_ext::covariance>("position/covariance", 1);
+    driver::m_publisher_gnss_track = public_node.advertise<sensor_msgs_ext::gnss_track>("track", 1);
+    driver::m_publisher_time_reference = public_node.advertise<sensor_msgs_ext::time_reference>("time", 1);
     // *********** Additional added ****************
-    driver::m_publisher_navsat_fix = public_node.advertise<sensor_msgs::NavSatFix>("/gps_mt3339/navsat_fix", 1);
+    driver::m_publisher_navsat_fix = public_node.advertise<sensor_msgs::NavSatFix>("navsat_fix", 1);
     
     // Initialize flags.
     driver::f_is_reading = false;
@@ -261,7 +261,7 @@ void driver::read_thread()
                 driver::handle_705(sentence);
             }
         }
-        else if(talker == "GP")
+        else if(talker == "GP" or talker == "GN" or talker == "GL")
         {
             if(type == "GGA")
             {
