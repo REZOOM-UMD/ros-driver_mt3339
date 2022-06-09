@@ -18,7 +18,7 @@ driver::driver(int32_t argc, char **argv)
     uint32_t p_baud = driver::m_node->param<int32_t>("baud_rate", 38400);
     uint32_t p_update_rate = driver::m_node->param<int32_t>("update_rate", 100);
     driver::p_frame_id = driver::m_node->param<std::string>("frame_id", "base_link");
-    driver::p_uere = driver::m_node->param<double>("uere", 6.74);
+    driver::p_uere = driver::m_node->param<double>("uere", 6.74);  // was 6.74
 
     // Set up publishers.
     ros::NodeHandle public_node;
@@ -531,6 +531,9 @@ void driver::handle_gsa(const nmea::sentence& sentence)
         sensor_msgs_ext::covariance covariance_message;
         covariance_message.dimensions = 3;
         covariance_message.covariance.resize(9, 0.0);
+
+        // artificially inflate default covariance
+        cov_h *= 5;
         covariance_message.covariance[0] = cov_h;
         covariance_message.covariance[4] = cov_h;
         covariance_message.covariance[8] = cov_v;
